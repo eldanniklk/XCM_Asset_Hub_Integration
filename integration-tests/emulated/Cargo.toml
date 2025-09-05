@@ -1,0 +1,46 @@
+[package]
+name = "emulated-tests"
+description = "Integration tests with the xcm emulator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Local.
+parachain-runtime = { workspace = true, default-features = false }
+
+# Remote.
+westend-runtime = { workspace = true, default-features = false }
+asset-hub-westend-runtime = { workspace = true, default-features = false }
+westend-runtime-constants = { workspace = true, default-features = false }
+
+# The SDK.
+[dependencies.polkadot-sdk]
+workspace = true
+default-features = false
+features = [
+  "emulated-integration-tests-common",
+  "xcm-emulator",
+  "staging-xcm",
+  "staging-parachain-info",
+  "pallet-staking",
+  "sc-consensus-grandpa",
+  "sp-authority-discovery",
+  "sp-consensus-babe",
+  "sp-consensus-beefy",
+  "sp-core",
+  "sp-runtime",
+  "polkadot-primitives",
+  "parachains-common",
+  "frame-support",
+  "frame-system",
+]
+
+[features]
+default = ["std"]
+std = [
+  "polkadot-sdk/std",
+  "parachain-runtime/std",
+  "westend-runtime/std",
+  "asset-hub-westend-runtime/std",
+  "westend-runtime-constants/std",
+]
