@@ -68,16 +68,16 @@ pub mod pallet {
         pub fn register_native_asset_on_ah(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin.clone())?;
 
-            /// Build the foreign asset id as seen on Asset Hub:
+            // Build the foreign asset id as seen on Asset Hub:
             let para_id = 2000;
             let para_location = Location::new(1, [Parachain(para_id)]);
 
-            /// Admin on Asset Hub = our sovereign account on Asset Hub.
+            // Admin on Asset Hub = our sovereign account on Asset Hub.
             let sov_account_on_ah: sp_runtime::AccountId32 = Self::public_key_to_account_id(
                 "0x7369626cd0070000000000000000000000000000000000000000000000000000",
             );
 
-            /// The origin of the XCM message is our sovereign account on our chain.
+            // The origin of the XCM message is our sovereign account on our chain.
             let origin_kind = OriginKind::Xcm;
             // Encode the call to Asset Hub.
             let call = AssetHubWestendRuntimeCall::ForeignAssets(ForeignAssetsCall::create {
@@ -138,11 +138,65 @@ pub mod pallet {
             _amount_wnd: u128,
             _beneficiary: [u8; 32],
         ) -> DispatchResult {
-            let _who = ensure_signed(origin);
+            let _who = ensure_signed(origin.clone())?;
 
-            // TODO.
+            // Verify both tokens are non-zero,
+            ensure!(
+                _amount_native > 0 && _amount_wnd > 0,
+                Error::<T>::XcmSendFailed
+            );
 
-            // ensure!(false, Error::<T>::Example);
+            let native_asset = Asset {
+                id: AssetId(Location::here()),
+                fun: Fungible(_amount_native),
+            };
+
+            let wnd_asset = Asset {
+                id: AssetId(Location::parent()),
+                fun: Fungible(_amount_wnd),
+            };
+
+            let assets_to_transfer = vec![native_asset, wnd_asset];
+            let dest = Location::new(1, [Parachain(1000u32)]);
+
+            let beneficiary_location = Location::new(
+                0,
+                [AccountId32 {
+                    network: None,
+                    id: _beneficiary,
+                }],
+            );
+
+            let fee_asset = Asset {
+                id: AssetId(Location::parent()),
+                fun: Fungible(1_000_000_000_000), // 1 WND
+            };
+
+            let refund_account = Location::new(
+                0,
+                [AccountId32 {
+                    network: None,
+                    id: _who
+                        .encode()
+                        .try_into()
+                        .map_err(|_| Error::<T>::XcmSendFailed)?,
+                }],
+            );
+            // Create the XCM call to send both assets to Asset Hub.
+            let xcm = Xcm::<()>::builder()
+                .withdraw_asset(assets_to_transfer.clone())
+                .buy_execution(fee_asset.clone(), WeightLimit::Unlimited)
+                .deposit_asset(AllCounted(2), beneficiary_location)
+                .refund_surplus()
+                .deposit_asset(AllCounted(1), refund_account)
+                .build();
+
+            let dest_box = Box::new(VersionedLocation::from(dest));
+            let msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(xcm.into()));
+
+            let hash = T::Xcm::send(origin, dest_box, msg)?;
+
+            Self::deposit_event(Event::<T>::XcmSent { hash });
 
             Ok(())
         }
