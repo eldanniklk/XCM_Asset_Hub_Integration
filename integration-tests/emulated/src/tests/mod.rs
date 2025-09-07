@@ -55,5 +55,23 @@ fn test_register_native_asset_creates_foreign_asset_on_ah() {
                 parachain_location
             )
         );
+
+        // Check fee refund
+        let sovereign_account: AccountId =
+            Sibling::from(ParaId::from(2000)).into_account_truncating();
+
+        let final_balance =
+            <AssetHubWestend as AssetHubWestendPallet>::Balances::free_balance(&sovereign_account);
+
+        // The balance should be less than initial (some fees were consumed)
+        // but should have received a refund (so not all 1 WND should be consumed)
+        let consumed_fees = BALANCE - final_balance;
+        let one_wnd = 1_000_000_000_000u128; // 1 WND
+
+        // Verify that less than the full 1 WND was consumed (meaning refund occurred)
+        assert!(consumed_fees < one_wnd);
+
+        // Verify that some fees were actually consumed (operation wasn't free)
+        assert!(consumed_fees > 0);
     });
 }

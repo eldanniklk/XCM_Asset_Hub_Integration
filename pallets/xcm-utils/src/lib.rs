@@ -99,38 +99,22 @@ pub mod pallet {
                 fun: Fungible(1_000_000_000_000), // 1 WND
             };
 
-            // let refund_account = Location::new(
-            //     0,
-            //     [AccountId32 {
-            //         network: None,
-            //         id: sov_account_on_ah.clone().into(),
-            //     }],
-            // );
+            let refund_account = Location::new(
+                0,
+                [AccountId32 {
+                    network: None,
+                    id: sov_account_on_ah.clone().into(),
+                }],
+            );
 
             let xcm = Xcm::<()>::builder()
                 .withdraw_asset(Assets::from(wnd_fee.clone()))
                 .buy_execution(wnd_fee.clone(), WeightLimit::Unlimited)
                 .transact(origin_kind, None, call.encode())
+                .refund_surplus()
+                .deposit_asset(AllCounted(1), refund_account)
                 .build();
 
-            // let xcm = Xcm::<T::RuntimeCall>(vec![
-            //     // Pay fees
-            //     WithdrawAsset(Assets::from(wnd_fee.clone())),
-            //     PayFees {
-            //         asset: wnd_fee.clone()
-            //     },
-            //     // Perform the registration.
-            //     Transact {
-            //         origin_kind: origin_kind,
-            //         fallback_max_weight: None,
-            //         call: call.encode().into(),
-            //     },
-            //     RefundSurplus,
-            //     DepositAsset {
-            //         assets: AllCounted(1).into(),
-            //         beneficiary: refund_account,
-            //     },
-            // ]);
             // Route to Asset Hub Westend.
             let dest = Box::new(VersionedLocation::from(Location::new(
                 1,
