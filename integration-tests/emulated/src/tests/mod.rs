@@ -5,7 +5,10 @@ use polkadot_sdk::xcm_emulator::assert_ok;
 use super::prelude::*;
 use crate::tests::xcm::opaque::latest::Junction::Parachain;
 use parachain_runtime::RuntimeOrigin;
+use polkadot_sdk::cumulus_primitives_core::ParaId;
 use polkadot_sdk::emulated_integration_tests_common::impls::Inspect;
+use polkadot_sdk::polkadot_parachain_primitives::primitives::Sibling;
+use polkadot_sdk::sp_runtime::traits::AccountIdConversion;
 use polkadot_sdk::{
     frame_support::traits::tokens::{fungible, fungibles},
     sp_runtime, staging_xcm as xcm,
@@ -13,39 +16,40 @@ use polkadot_sdk::{
 use xcm::latest::Location;
 
 const ALICE: u32 = 1;
-
-// #[test]
-// fn example_test() {
-//     // This executes the inner code from the perspective of the custom parachain.
-//     CustomPara::execute_with(|| {
-//         assert_ok!(
-//             <CustomPara as CustomParaPallet>::XcmUtils::register_native_asset_on_ah(
-//                 RuntimeOrigin::root()
-//             ),
-//         );
-//     });
-//     // This executes the inner code from the perspective of Asset Hub.
-//     AssetHubWestend::execute_with(|| {
-//         let ah_registered_asset = Location::new(0, [Parachain(2000)]);
-//     });
-// }
+const BALANCE: u128 = 1_000_000_000_000_000; // 1000 WND
 
 #[test]
 fn test_register_native_asset_creates_foreign_asset_on_ah() {
-    // Execute registration from custom parachain
-    CustomPara::execute_with(|| {
+    let parachain_location = Location::new(1, Parachain(2000));
+
+    AssetHubWestend::execute_with(|| {
+        assert!(
+            !<AssetHubWestend as AssetHubWestendPallet>::ForeignAssets::asset_exists(
+                parachain_location.clone()
+            )
+        );
+
+        let sovereign_account: AccountId =
+            Sibling::from(ParaId::from(2000)).into_account_truncating();
+
         assert_ok!(
-            <CustomPara as CustomParaPallet>::XcmUtils::register_native_asset_on_ah(
-                RuntimeOrigin::root()
-            ),
+            <AssetHubWestend as AssetHubWestendPallet>::Balances::force_set_balance(
+                asset_hub_westend_runtime::RuntimeOrigin::root(),
+                sovereign_account.into(),
+                BALANCE,
+            )
         );
     });
 
-    // Verify the foreign asset was created on Asset Hub
-    AssetHubWestend::execute_with(|| {
-        let parachain_location = Location::new(1, [Parachain(2000)]);
+    CustomPara::execute_with(|| {
+        assert_ok!(
+            <CustomPara as CustomParaPallet>::XcmUtils::register_native_asset_on_ah(
+                parachain_runtime::RuntimeOrigin::root()
+            )
+        );
+    });
 
-        // Check if the foreign asset exists
+    AssetHubWestend::execute_with(|| {
         assert!(
             <AssetHubWestend as AssetHubWestendPallet>::ForeignAssets::asset_exists(
                 parachain_location
