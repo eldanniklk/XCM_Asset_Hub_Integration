@@ -76,6 +76,7 @@ pub mod pallet {
             let sov_account_on_ah: sp_runtime::AccountId32 = Self::public_key_to_account_id(
                 "0x7369626cd0070000000000000000000000000000000000000000000000000000",
             );
+
             let sov_account_as_multiaddress: sp_runtime::MultiAddress<sp_runtime::AccountId32, ()> =
                 sov_account_on_ah.clone().into();
             /// The origin of the XCM message is our sovereign account on our chain.
@@ -85,10 +86,11 @@ pub mod pallet {
             let call = AssetHubWestendRuntimeCall::ForeignAssets(ForeignAssetsCall::create {
                 // The location of your chain from the perspective of asset hub.
                 id: para_location,
-                admin: sov_account_as_multiaddress.clone(),
-                min_balance: 10_000u128,
-            })
-            .encode();
+                admin: polkadot_sdk::sp_runtime::MultiAddress::Id(Self::public_key_to_account_id(
+                    "0x7369626cd0070000000000000000000000000000000000000000000000000000",
+                )),
+                min_balance: 1,
+            });
 
             // Pay for execution on Asset Hub in WND (Parent asset). Overestimate on purpose.
             let destination = Location::new(1, [Parachain(1000)]);
@@ -107,10 +109,7 @@ pub mod pallet {
 
             let xcm = Xcm::<()>::builder()
                 .withdraw_asset(Assets::from(wnd_fee.clone()))
-                .buy_execution(
-                    wnd_fee.clone(),
-                    WeightLimit::Unlimited,
-                )
+                .buy_execution(wnd_fee.clone(), WeightLimit::Unlimited)
                 .transact(origin_kind, None, call.encode())
                 .build();
 
