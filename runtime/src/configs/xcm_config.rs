@@ -181,6 +181,18 @@ impl ContainsPair<Asset, Location> for AssetHubForWnd {
     }
 }
 
+pub struct NativeAssetToAssetHub;
+impl ContainsPair<Asset, Location> for NativeAssetToAssetHub {
+    fn contains(asset: &Asset, location: &Location) -> bool {
+        let is_asset_hub = match location.unpack() {
+            (1, [Parachain(id)]) if *id == ASSET_HUB_PARA_ID => true,
+            _ => false,
+        };
+
+        asset.id.0 == Location::here() && is_asset_hub
+    }
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
     type RuntimeCall = RuntimeCall;
