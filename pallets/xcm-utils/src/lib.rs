@@ -77,11 +77,8 @@ pub mod pallet {
                 "0x7369626cd0070000000000000000000000000000000000000000000000000000",
             );
 
-            let sov_account_as_multiaddress: sp_runtime::MultiAddress<sp_runtime::AccountId32, ()> =
-                sov_account_on_ah.clone().into();
             /// The origin of the XCM message is our sovereign account on our chain.
             let origin_kind = OriginKind::Xcm;
-            let fallback_max_weight = Weight::from_parts(10_000, 0);
             // Encode the call to Asset Hub.
             let call = AssetHubWestendRuntimeCall::ForeignAssets(ForeignAssetsCall::create {
                 // The location of your chain from the perspective of asset hub.
@@ -93,7 +90,6 @@ pub mod pallet {
             });
 
             // Pay for execution on Asset Hub in WND (Parent asset). Overestimate on purpose.
-            let destination = Location::new(1, [Parachain(1000)]);
             let wnd_fee = Asset {
                 id: Location::parent().into(),
                 fun: Fungible(1_000_000_000_000), // 1 WND

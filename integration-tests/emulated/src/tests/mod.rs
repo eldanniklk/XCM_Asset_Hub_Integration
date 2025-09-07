@@ -7,7 +7,9 @@ use crate::tests::xcm::opaque::latest::Junction::Parachain;
 use parachain_runtime::RuntimeOrigin;
 use polkadot_sdk::cumulus_primitives_core::ParaId;
 use polkadot_sdk::emulated_integration_tests_common::impls::Inspect;
+use polkadot_sdk::frame_support::traits::fungibles::Mutate;
 use polkadot_sdk::polkadot_parachain_primitives::primitives::Sibling;
+use polkadot_sdk::sp_keyring::Sr25519Keyring;
 use polkadot_sdk::sp_runtime::traits::AccountIdConversion;
 use polkadot_sdk::{
     frame_support::traits::tokens::{fungible, fungibles},
@@ -16,10 +18,11 @@ use polkadot_sdk::{
 use xcm::latest::Location;
 
 const ALICE: u32 = 1;
+const BOB: u32 = 2;
 const BALANCE: u128 = 1_000_000_000_000_000; // 1000 WND
 
 #[test]
-fn test_register_native_asset_creates_foreign_asset_on_ah() {
+fn test_register_native_asset_creates_foreign_asset_on_ah_works() {
     let parachain_location = Location::new(1, Parachain(2000));
 
     AssetHubWestend::execute_with(|| {
@@ -55,7 +58,9 @@ fn test_register_native_asset_creates_foreign_asset_on_ah() {
                 parachain_location
             )
         );
+    });
 
+    AssetHubWestend::execute_with(|| {
         // Check fee refund
         let sovereign_account: AccountId =
             Sibling::from(ParaId::from(2000)).into_account_truncating();
@@ -73,5 +78,95 @@ fn test_register_native_asset_creates_foreign_asset_on_ah() {
 
         // Verify that some fees were actually consumed (operation wasn't free)
         assert!(consumed_fees > 0);
+    });
+}
+
+#[test]
+fn test_transfer_to_ah_works() {
+    use polkadot_sdk::frame_support::traits::fungible::Inspect;
+
+    let sovereign_account: AccountId = Sibling::from(ParaId::from(2000)).into_account_truncating();
+    let parachain_location = Location::new(1, Parachain(2000));
+    let relay_location = Location::parent();
+    let alice = Sr25519Keyring::Alice.to_account_id();
+    let bob = Sr25519Keyring::Bob.to_account_id();
+    let balance_to_transfer = BALANCE / 10;
+
+    let bob_balance = AssetHubWestend::execute_with(|| {
+        // Set the balance of the sovereign account on Asset Hub.
+        assert_ok!(
+            <AssetHubWestend as AssetHubWestendPallet>::Balances::force_set_balance(
+                asset_hub_westend_runtime::RuntimeOrigin::root(),
+                sovereign_account.into(),
+                BALANCE,
+            )
+        );
+
+        <AssetHubWestend as AssetHubWestendPallet>::Balances::total_balance(&bob)
+    });
+
+    CustomPara::execute_with(|| {
+        // Register the native asset first.
+        assert_ok!(
+            <CustomPara as CustomParaPallet>::XcmUtils::register_native_asset_on_ah(
+                parachain_runtime::RuntimeOrigin::root()
+            )
+        );
+
+        // Set Alice's balance in the native asset.
+        assert_ok!(
+            <CustomPara as CustomParaPallet>::Balances::force_set_balance(
+                parachain_runtime::RuntimeOrigin::root(),
+                alice.clone().into(),
+                balance_to_transfer,
+            )
+        );
+
+        // Check Alice has no balance in WND
+        assert_eq!(
+            <CustomPara as CustomParaPallet>::ForeignAssets::total_balance(
+                relay_location.clone(),
+                (&alice).into()
+            ),
+            0
+        );
+
+        // Set Alice's balance in WND.
+        assert_ok!(<CustomPara as CustomParaPallet>::ForeignAssets::mint_into(
+            relay_location.clone(),
+            (&alice.clone()).into(),
+            BALANCE,
+        ));
+        assert_eq!(
+            <CustomPara as CustomParaPallet>::ForeignAssets::total_balance(
+                relay_location.clone(),
+                (&alice).into()
+            ),
+            BALANCE
+        );
+
+        // Send from Alice to Bob
+        assert_ok!(<CustomPara as CustomParaPallet>::XcmUtils::transfer_to_ah(
+            parachain_runtime::RuntimeOrigin::signed(alice.clone()),
+            balance_to_transfer,
+            balance_to_transfer,
+            bob.clone().into(),
+        ));
+    });
+
+    AssetHubWestend::execute_with(|| {
+        // Check Bob's balance is non-zero.
+        assert_eq!(
+            <AssetHubWestend as AssetHubWestendPallet>::ForeignAssets::total_balance(
+                parachain_location,
+                (&bob.clone()).into(),
+            ),
+            balance_to_transfer
+        );
+
+        assert_eq!(
+            <AssetHubWestend as AssetHubWestendPallet>::Balances::total_balance(&bob),
+            bob_balance + balance_to_transfer
+        );
     });
 }
