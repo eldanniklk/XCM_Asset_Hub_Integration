@@ -256,6 +256,7 @@ impl_runtime_apis! {
             use polkadot_sdk::frame_support::traits::StorageInfoTrait;
             use frame_system_benchmarking::Pallet as SystemBench;
             use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
+            use pallet_xcm_utils::benchmarking::Pallet as XcmUtilsBench;
             use super::*;
 
             let mut list = Vec::<BenchmarkList>::new();
@@ -286,6 +287,7 @@ impl_runtime_apis! {
 
             use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
             impl cumulus_pallet_session_benchmarking::Config for Runtime {}
+            use pallet_xcm_utils::benchmarking::Pallet as XcmUtilsBench;
 
             use polkadot_sdk::frame_support::traits::WhitelistedStorageKeys;
             let whitelist = AllPalletsWithSystem::whitelisted_storage_keys();

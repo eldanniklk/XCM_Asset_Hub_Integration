@@ -31,7 +31,8 @@ use xcm_builder::{
     SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, StartsWith,
     TakeWeightCredit, TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
 };
-use xcm_executor::{traits::Identity, XcmExecutor};
+use xcm_executor::{traits::{DenyExecution, Identity}, XcmExecutor};
+use polkadot_sdk::polkadot_sdk_frame::traits::ProcessMessageError;
 
 pub const ASSET_HUB_PARA_ID: u32 = 1000;
 
@@ -43,6 +44,31 @@ parameter_types! {
     // For the real deployment, it is recommended to set `RelayNetwork` according to the relay chain
     // and prepend `UniversalLocation` with `GlobalConsensus(RelayNetwork::get())`.
     pub UniversalLocation: InteriorLocation = Parachain(ParachainInfo::parachain_id().into()).into();
+    // Optional: banned account on Asset Hub (AccountId32). Adjust as needed.
+    // Any XCM originating from `Parent -> Parachain(1000) -> AccountId32(banned)` is rejected.
+    pub const BannedAssetHubAccountId: [u8; 32] = [0u8; 32];
+}
+
+// Optional: reject XCM messages originating from a specific account on Asset Hub.
+// This is a simple, explicit deny-list example for the assignment bonus.
+pub struct DenyBannedAssetHubAccount;
+impl DenyExecution for DenyBannedAssetHubAccount {
+    fn deny_execution<RuntimeCall>(
+        origin: &Location,
+        _instructions: &mut [Instruction<RuntimeCall>],
+        _max_weight: Weight,
+        _properties: &mut xcm_executor::traits::Properties,
+    ) -> Result<(), ProcessMessageError> {
+        match origin.unpack() {
+            (1, [Parachain(id), AccountId32 { id: account_id, .. }])
+                if *id == ASSET_HUB_PARA_ID && *account_id == BannedAssetHubAccountId::get() =>
+            {
+                // Deny execution for this banned origin.
+                Err(ProcessMessageError::Unsupported)
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used
@@ -153,7 +179,7 @@ impl Contains<Location> for ParentOrParentsExecutivePlurality {
 
 pub type Barrier = TrailingSetTopicAsId<
     DenyThenTry<
-        DenyRecursively<DenyReserveTransferToRelayChain>,
+        DenyRecursively<(DenyReserveTransferToRelayChain, DenyBannedAssetHubAccount)>,
         (
             TakeWeightCredit,
             WithComputedOrigin<
@@ -184,6 +210,7 @@ impl ContainsPair<Asset, Location> for AssetHubForWnd {
 pub struct NativeAssetToAssetHub;
 impl ContainsPair<Asset, Location> for NativeAssetToAssetHub {
     fn contains(asset: &Asset, location: &Location) -> bool {
+        // Only allow teleports of the local native asset to Asset Hub.
         let is_asset_hub = match location.unpack() {
             (1, [Parachain(id)]) if *id == ASSET_HUB_PARA_ID => true,
             _ => false,
@@ -202,7 +229,10 @@ impl xcm_executor::Config for XcmConfig {
     type AssetTransactor = AssetTransactors;
     type OriginConverter = XcmOriginToTransactDispatchOrigin;
     type IsReserve = AssetHubForWnd;
-    type IsTeleporter = ();
+    // Restrictive whitelist for teleports: only native asset -> Asset Hub.
+    // This is required by the assignment (IsTeleporter was `()`), and keeps
+    // teleports limited to a safe scope.
+    type IsTeleporter = NativeAssetToAssetHub;
     type UniversalLocation = UniversalLocation;
     type Barrier = Barrier;
     // All instructions cost the same weight.
@@ -287,4 +317,5 @@ impl cumulus_pallet_xcm::Config for Runtime {
 impl pallet_xcm_utils::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Xcm = PolkadotXcm;
+    type WeightInfo = pallet_xcm_utils::weights::SubstrateWeight<Runtime>;
 }
