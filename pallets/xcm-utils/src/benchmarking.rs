@@ -26,7 +26,12 @@ mod benchmarks {
         let beneficiary: [u8; 32] = [1u8; 32];
 
         #[extrinsic_call]
-        _(RawOrigin::Signed(caller), amount_native, amount_wnd, beneficiary);
+        _(
+            RawOrigin::Signed(caller),
+            amount_native,
+            amount_wnd,
+            beneficiary,
+        );
 
         Ok(())
     }

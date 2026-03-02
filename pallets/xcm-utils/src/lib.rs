@@ -10,6 +10,7 @@ pub mod benchmarking;
 
 #[frame::pallet]
 pub mod pallet {
+    use crate::weights::WeightInfo;
     use alloc::boxed::Box;
     use alloc::vec;
     use frame::prelude::*;
@@ -22,19 +23,19 @@ pub mod pallet {
         polkadot_parachain_primitives::primitives::Sibling,
         sp_runtime,
         sp_runtime::traits::{AccountIdConversion, SaturatedConversion},
-        staging_parachain_info as parachain_info,
-        staging_xcm as xcm,
+        staging_parachain_info as parachain_info, staging_xcm as xcm,
         staging_xcm_builder::{ExecuteController, SendController},
     };
-    use xcm::v5::AssetTransferFilter;
-    use crate::weights::WeightInfo;
     use xcm::prelude::*;
+    use xcm::v5::AssetTransferFilter;
 
     // Asset Hub on Westend has para id 1000 in the emulator setup.
     const ASSET_HUB_PARA_ID: u32 = 1000;
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
-    pub trait Config: frame_system::Config + parachain_info::Config + pallet_balances::Config {
+    pub trait Config:
+        frame_system::Config + parachain_info::Config + pallet_balances::Config
+    {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         // An interface to access XCM `execute` and `send`.
@@ -389,7 +390,8 @@ pub mod pallet {
                 fun: Fungible(wnd_fee),
             };
 
-            let withdraw_assets: Assets = vec![wnd_total_asset.clone(), native_asset.clone()].into();
+            let withdraw_assets: Assets =
+                vec![wnd_total_asset.clone(), native_asset.clone()].into();
 
             // Asset Hub representations.
             // - Our parachain location as a foreign asset ID on Asset Hub.
@@ -412,14 +414,13 @@ pub mod pallet {
             // Encode Asset Hub calls.
             // 1) create_pool(WND, native-foreign)
             // 2) add_liquidity(WND, native-foreign, amounts..., mint_to sovereign)
-            let create_pool = AssetHubWestendRuntimeCall::AssetConversion(
-                AssetConversionCall::create_pool {
+            let create_pool =
+                AssetHubWestendRuntimeCall::AssetConversion(AssetConversionCall::create_pool {
                     asset1: Box::new(wnd_location.clone()),
                     asset2: Box::new(para_location.clone()),
-                },
-            );
-            let add_liquidity = AssetHubWestendRuntimeCall::AssetConversion(
-                AssetConversionCall::add_liquidity {
+                });
+            let add_liquidity =
+                AssetHubWestendRuntimeCall::AssetConversion(AssetConversionCall::add_liquidity {
                     asset1: Box::new(wnd_location),
                     asset2: Box::new(para_location),
                     amount1_desired: _amount_wnd,
@@ -427,8 +428,7 @@ pub mod pallet {
                     amount1_min: _amount_wnd,
                     amount2_min: _amount_native,
                     mint_to: sov_account_on_ah.clone(),
-                },
-            );
+                });
 
             // Remote program on Asset Hub:
             // 1) Deposit transferred assets to the sovereign account (funds the pool).
@@ -499,7 +499,9 @@ pub mod pallet {
             )
             .map_err(|_| Error::<T>::XcmSendFailed)?;
 
-            Self::deposit_event(Event::<T>::XcmSent { hash: XcmHash::default() });
+            Self::deposit_event(Event::<T>::XcmSent {
+                hash: XcmHash::default(),
+            });
 
             Ok(())
         }
